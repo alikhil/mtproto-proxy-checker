@@ -1,0 +1,8 @@
+
+services:
+  checker:
+    build: .
+    container_name: mtproto-checker
+    restart: unless-stopped
+    env_file:
+      - .env
