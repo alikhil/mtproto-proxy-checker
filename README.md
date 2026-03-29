@@ -19,6 +19,7 @@ docker-compose up -d
 | `PROXY_PORT` | No* | — | Proxy port (if no `PROXY_URL`) |
 | `PROXY_SECRET` | No* | — | Proxy secret (if no `PROXY_URL`) |
 | `CHECK_INTERVAL` | No | `300` | Seconds between checks (min 10) |
+| `FAILURE_THRESHOLD` | No | `1` | Consecutive failures before alerting |
 
 \*Either `PROXY_URL` or all three `PROXY_HOST`/`PORT`/`SECRET`.
 

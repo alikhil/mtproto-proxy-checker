@@ -461,6 +461,7 @@ class HealthChecker:
         chat_id: str,
         check_interval: int = 300,
         daily_report: bool = True,
+        failure_threshold: int = 1,
         api_id: int = DEFAULT_API_ID,
         api_hash: str = DEFAULT_API_HASH,
     ):
@@ -468,6 +469,7 @@ class HealthChecker:
         self.notifier = TelegramNotifier(bot_token, chat_id)
         self.check_interval = check_interval
         self.daily_report_enabled = daily_report
+        self.failure_threshold = max(1, failure_threshold)
         self.chat_id = chat_id
 
         self.proxy_display = f"{proxy_host}:{proxy_port}"
@@ -477,14 +479,14 @@ class HealthChecker:
         self.total_checks = 0
         self.failed_checks = 0
         self.start_time = datetime.now()
-    
+
     def format_uptime(self) -> str:
         """Format uptime duration"""
         uptime = datetime.now() - self.start_time
         days = uptime.days
         hours, remainder = divmod(uptime.seconds, 3600)
         minutes, _ = divmod(remainder, 60)
-        
+
         parts = []
         if days > 0:
             parts.append(f"{days}d")
@@ -492,9 +494,9 @@ class HealthChecker:
             parts.append(f"{hours}h")
         if minutes > 0:
             parts.append(f"{minutes}m")
-        
+
         return " ".join(parts) if parts else "0m"
-    
+
     def send_down_alert(self, error: str):
         """Send alert when proxy goes down"""
         message = (
@@ -505,7 +507,7 @@ class HealthChecker:
             f"<b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         self.notifier.send_message(message)
-    
+
     def send_recovery_alert(self):
         """Send alert when proxy recovers"""
         message = (
@@ -515,16 +517,16 @@ class HealthChecker:
             f"<b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         self.notifier.send_message(message)
-    
+
     def send_daily_report(self):
         """Send daily health report"""
         uptime_pct = 0.0
         if self.total_checks > 0:
             uptime_pct = ((self.total_checks - self.failed_checks) / self.total_checks) * 100
-        
+
         status_emoji = "🟢" if not self.is_down else "🔴"
         status_text = "Online" if not self.is_down else "Offline"
-        
+
         message = (
             f"📊 <b>Daily Health Report</b>\n\n"
             f"<b>Proxy:</b> <code>{self.proxy_display}</code>\n"
@@ -536,21 +538,23 @@ class HealthChecker:
             f"<b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         self.notifier.send_message(message)
-    
+
     async def run_check(self):
         """Perform a single health check."""
         self.total_checks += 1
         is_alive, error = await self.checker.check()
-        
+
         if not is_alive:
             self.failed_checks += 1
             self.consecutive_failures += 1
-            
-            # Send alert if proxy just went down
-            if not self.is_down:
+
+            # Send alert if proxy just went down (after threshold consecutive failures)
+            if not self.is_down and self.consecutive_failures >= self.failure_threshold:
                 self.is_down = True
                 self.send_down_alert(error or "Unknown error")
                 log.warning("Proxy DOWN: %s", error)
+            elif not self.is_down:
+                log.info("Proxy check failed (%d/%d): %s", self.consecutive_failures, self.failure_threshold, error)
             else:
                 log.info("Proxy still down: %s (failures: %d)", error, self.consecutive_failures)
         else:
@@ -561,37 +565,38 @@ class HealthChecker:
                 log.info("Proxy RECOVERED after %d failures", self.consecutive_failures)
             else:
                 log.info("Proxy OK")
-            
+
             self.consecutive_failures = 0
-    
+
     async def run(self):
         """Main monitoring loop"""
         log.info("Starting health checker for %s", self.proxy_display)
-        log.info("Check interval: %d seconds", self.check_interval)
-        
+        log.info("Check interval: %d seconds, failure threshold: %d", self.check_interval, self.failure_threshold)
+
         # Send startup notification
         message = (
             f"✅ <b>Health Checker Started</b>\n\n"
             f"<b>Proxy:</b> <code>{self.proxy_display}</code>\n"
             f"<b>Check interval:</b> {self.check_interval}s ({self.check_interval // 60} minutes)\n"
+            f"<b>Failure threshold:</b> {self.failure_threshold}\n"
             f"<b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         )
         self.notifier.send_message(message)
-        
+
         while True:
             try:
                 # Perform health check
                 await self.run_check()
-                
+
                 # Check if we need to send daily report
                 now = datetime.now()
                 if self.daily_report_enabled and (now - self.last_daily_report).total_seconds() >= 86400:
                     self.send_daily_report()
                     self.last_daily_report = now
-                
+
                 # Wait for next check
                 await asyncio.sleep(self.check_interval)
-                
+
             except KeyboardInterrupt:
                 log.info("Shutting down...")
                 break
@@ -608,32 +613,32 @@ def get_chat_id(bot_token: str):
     print("\n1. Open Telegram and find your bot")
     print("2. Send any message to the bot")
     print("3. This script will fetch the chat ID\n")
-    
+
     input("Press Enter when you've sent a message to the bot...")
-    
+
     url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
-    
+
     try:
         req = Request(url)
         with urlopen(req, timeout=10) as response:
             data = json.loads(response.read().decode('utf-8'))
-            
+
             if not data.get('ok'):
                 print(f"Error: {data.get('description', 'Unknown error')}")
                 return
-            
+
             updates = data.get('result', [])
             if not updates:
                 print("No messages found. Please send a message to the bot and try again.")
                 return
-            
+
             # Get the most recent message
             latest = updates[-1]
             chat = latest.get('message', {}).get('chat', {})
             chat_id = chat.get('id')
             chat_type = chat.get('type')
             chat_title = chat.get('title') or chat.get('first_name') or 'Unknown'
-            
+
             print("\n" + "=" * 60)
             print("Found Chat ID!")
             print("=" * 60)
@@ -643,7 +648,7 @@ def get_chat_id(bot_token: str):
             print("\nAdd this to your .env file:")
             print(f"CHAT_ID={chat_id}")
             print("=" * 60)
-            
+
     except URLError as e:
         print(f"Network error: {e}")
     except Exception as e:
@@ -653,23 +658,23 @@ def get_chat_id(bot_token: str):
 def main():
     """Main entry point"""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='MTProto Proxy Health Checker')
-    parser.add_argument('--get-chat-id', action='store_true', 
+    parser.add_argument('--get-chat-id', action='store_true',
                        help='Helper to retrieve chat ID from bot')
-    
+
     args = parser.parse_args()
-    
+
     # Load environment variables
     bot_token = os.getenv('BOT_TOKEN')
-    
+
     if args.get_chat_id:
         if not bot_token:
             log.error("BOT_TOKEN environment variable not set")
             sys.exit(1)
         get_chat_id(bot_token)
         return
-    
+
     # Load environment variables
     chat_id = os.getenv('CHAT_ID')
     proxy_url = os.getenv('PROXY_URL')
@@ -677,7 +682,7 @@ def main():
     proxy_port = os.getenv('PROXY_PORT')
     proxy_secret = os.getenv('PROXY_SECRET')
     check_interval = os.getenv('CHECK_INTERVAL', '300')
-    
+
     # Parse proxy configuration
     if proxy_url:
         # PROXY_URL takes precedence
@@ -698,13 +703,13 @@ def main():
             missing.append('PROXY_PORT')
         if not proxy_secret:
             missing.append('PROXY_SECRET')
-        
+
         if missing:
             log.error("Either PROXY_URL or all of PROXY_HOST, PROXY_PORT, PROXY_SECRET must be set")
             log.error("Missing variables: %s", ", ".join(missing))
             log.info("Example: PROXY_URL=tg://proxy?server=example.com&port=443&secret=ee00000...")
             sys.exit(1)
-        
+
         # Validate port when using individual settings
         try:
             proxy_port = int(proxy_port)
@@ -713,18 +718,18 @@ def main():
         except ValueError:
             log.error("Invalid PROXY_PORT '%s'. Must be 1-65535", proxy_port)
             sys.exit(1)
-    
+
     # Validate other required vars
     missing = []
     if not bot_token:
         missing.append('BOT_TOKEN')
     if not chat_id:
         missing.append('CHAT_ID')
-    
+
     if missing:
         log.error("Missing required environment variables: %s", ", ".join(missing))
         sys.exit(1)
-    
+
     # Validate check interval
     try:
         interval = int(check_interval)
@@ -733,7 +738,17 @@ def main():
     except ValueError:
         log.error("Invalid CHECK_INTERVAL '%s'. Must be >= 10 seconds", check_interval)
         sys.exit(1)
-    
+
+    # Validate failure threshold
+    failure_threshold_str = os.getenv('FAILURE_THRESHOLD', '1')
+    try:
+        failure_threshold = int(failure_threshold_str)
+        if failure_threshold < 1:
+            raise ValueError()
+    except ValueError:
+        log.error("Invalid FAILURE_THRESHOLD '%s'. Must be >= 1", failure_threshold_str)
+        sys.exit(1)
+
     # Create and run health checker
     api_id = int(os.getenv('API_ID', str(DEFAULT_API_ID)))
     api_hash = os.getenv('API_HASH', DEFAULT_API_HASH)
@@ -747,10 +762,11 @@ def main():
         chat_id=chat_id,
         check_interval=interval,
         daily_report=daily_report,
+        failure_threshold=failure_threshold,
         api_id=api_id,
         api_hash=api_hash,
     )
-    
+
     try:
         asyncio.run(checker.run())
     except KeyboardInterrupt:
