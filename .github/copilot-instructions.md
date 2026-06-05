@@ -40,8 +40,9 @@
 - Preserve the current env-var contract:
   - required: `BOT_TOKEN`, `CHAT_ID`
   - proxy config: either `PROXY_URL` or all of `PROXY_HOST`, `PROXY_PORT`, `PROXY_SECRET`
-  - optional: `CHECK_INTERVAL`, `FAILURE_THRESHOLD`, `API_ID`, `API_HASH`, `DAILY_REPORT`
+  - optional: `PROXY_NAME`, `CHECK_INTERVAL`, `FAILURE_THRESHOLD`, `API_ID`, `API_HASH`, `DAILY_REPORT`
 - `CHECK_INTERVAL` must stay at least 10 seconds; `FAILURE_THRESHOLD` must stay at least 1.
 - `PROXY_PORT` is validated as an integer in the range 1-65535.
+- `PROXY_NAME` should be shown in Telegram notifications when set, with `host:port` as the fallback display name.
 - Tests are written as simple functions that print status and raise on failure; keep that style if adding coverage.
 - Keep logging behavior quiet around Telethon and explicit for checker status transitions.

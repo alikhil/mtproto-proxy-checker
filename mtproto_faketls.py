@@ -270,7 +270,8 @@ class ConnectionTcpMTProxyFakeTLS(ConnectionTcpMTProxyRandomizedIntermediate):
         if len(proxy_host) > 60:
             proxy_host = socket.gethostbyname(proxy[0])
 
-        proxy = (proxy_host, proxy[1], self.fake_tls_codec.secret.hex())
+        proxy_secret = base64.b64encode(self.fake_tls_codec.secret).decode("ascii").rstrip("=")
+        proxy = (proxy_host, proxy[1], proxy_secret)
         super().__init__(
             ip, port, dc_id, loggers=loggers, proxy=proxy, local_addr=local_addr
         )
