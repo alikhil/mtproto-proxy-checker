@@ -18,6 +18,7 @@ docker-compose up -d
 | `PROXY_HOST` | No* | — | Proxy hostname (if no `PROXY_URL`) |
 | `PROXY_PORT` | No* | — | Proxy port (if no `PROXY_URL`) |
 | `PROXY_SECRET` | No* | — | Proxy secret (if no `PROXY_URL`) |
+| `PROXY_NAME` | No | `host:port` | Display name used in Telegram notifications |
 | `CHECK_INTERVAL` | No | `300` | Seconds between checks (min 10) |
 | `FAILURE_THRESHOLD` | No | `1` | Consecutive failures before alerting |
 

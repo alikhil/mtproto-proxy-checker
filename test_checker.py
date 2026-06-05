@@ -9,7 +9,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from checker import MTProtoChecker, TelegramNotifier, parse_proxy_url, _parse_secret
+from checker import MTProtoChecker, TelegramNotifier, parse_proxy_url, _parse_secret, HealthChecker
 
 
 def test_mtproto_checker():
@@ -51,6 +51,30 @@ def test_telegram_notifier_validation():
     assert "test_token" in notifier.base_url
 
     print("✓ TelegramNotifier instantiation works")
+
+
+def test_proxy_name_in_notifications():
+    """Test PROXY_NAME is used in notification text"""
+    print("Testing proxy name in notifications...")
+
+    checker = HealthChecker(
+        "example.com",
+        443,
+        "0123456789abcdef0123456789abcdef",
+        "Friendly Proxy",
+        "test_token",
+        "test_chat_id",
+    )
+
+    messages = []
+    checker.notifier.send_message = lambda text, parse_mode="HTML": messages.append(text) or True
+
+    checker.send_down_alert("boom")
+
+    assert messages, "Expected a notification to be sent"
+    assert "<b>Proxy:</b> <code>Friendly Proxy</code>" in messages[0]
+
+    print("✓ Proxy name is used in notifications")
 
 
 def test_proxy_url_parsing():
@@ -159,6 +183,7 @@ def main():
     tests = [
         ("secret_parsing", test_secret_parsing),
         ("telegram_notifier", test_telegram_notifier_validation),
+        ("proxy_name_notifications", test_proxy_name_in_notifications),
         ("proxy_url_parsing", test_proxy_url_parsing),
         ("env_validation", test_env_validation),
         ("invalid_proxy", test_mtproto_checker),

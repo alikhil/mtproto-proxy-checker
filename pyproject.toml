@@ -1,6 +1,6 @@
 [project]
 name = "mtproto-proxy-checker"
-version = "1.0.0"
+version = "1.1.0"
 description = "MTProto proxy health checker with Telegram notifications"
 requires-python = ">=3.11"
 dependencies = ["telethon>=1.36"]

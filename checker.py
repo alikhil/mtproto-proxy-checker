@@ -457,6 +457,7 @@ class HealthChecker:
         proxy_host: str,
         proxy_port: int,
         proxy_secret: str,
+        proxy_name: str | None,
         bot_token: str,
         chat_id: str,
         check_interval: int = 300,
@@ -472,7 +473,8 @@ class HealthChecker:
         self.failure_threshold = max(1, failure_threshold)
         self.chat_id = chat_id
 
-        self.proxy_display = f"{proxy_host}:{proxy_port}"
+        self.proxy_endpoint = f"{proxy_host}:{proxy_port}"
+        self.proxy_display = proxy_name.strip() if proxy_name and proxy_name.strip() else self.proxy_endpoint
         self.is_down = False
         self.last_daily_report = datetime.now() - timedelta(days=1)
         self.consecutive_failures = 0
@@ -571,6 +573,8 @@ class HealthChecker:
     async def run(self):
         """Main monitoring loop"""
         log.info("Starting health checker for %s", self.proxy_display)
+        if self.proxy_display != self.proxy_endpoint:
+            log.info("Proxy endpoint: %s", self.proxy_endpoint)
         log.info("Check interval: %d seconds, failure threshold: %d", self.check_interval, self.failure_threshold)
 
         # Send startup notification
@@ -681,6 +685,7 @@ def main():
     proxy_host = os.getenv('PROXY_HOST')
     proxy_port = os.getenv('PROXY_PORT')
     proxy_secret = os.getenv('PROXY_SECRET')
+    proxy_name = os.getenv('PROXY_NAME')
     check_interval = os.getenv('CHECK_INTERVAL', '300')
 
     # Parse proxy configuration
@@ -758,6 +763,7 @@ def main():
         proxy_host=proxy_host,
         proxy_port=proxy_port,
         proxy_secret=proxy_secret,
+        proxy_name=proxy_name,
         bot_token=bot_token,
         chat_id=chat_id,
         check_interval=interval,
