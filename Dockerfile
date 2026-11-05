@@ -3,7 +3,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY pyproject.toml /app/
-RUN pip install --no-cache-dir 'telethon>=1.36'
+RUN pip install --no-cache-dir 'pip==26.2.2' \
+    && pip install --no-cache-dir 'telethon==1.44.0'
 
 COPY checker.py mtproto_faketls.py /app/
 
